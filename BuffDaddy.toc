@@ -1,0 +1,29 @@
+## Interface: 11200
+## Title: BuffDaddy
+## Notes: Raid/group buff tracker and reminder
+## Author: Max
+
+# Load order matters! Each file depends on the ones loaded before it.
+# See the comment block at the top of each file for its specific dependencies.
+
+# 1. Pure data - no dependencies on anything.
+BuffDaddy_Definitions.lua
+
+# 2. Namespace + constants - everything below depends on this existing.
+BuffDaddy.lua
+
+# 3. Roster gathering - depends on the BuffDaddy namespace.
+BuffDaddy_Roster.lua
+
+# 4. Buff checking logic - depends on Definitions + Roster.
+BuffDaddy_Check.lua
+
+# 5. Window/chat/whisper output - depends on Check's result format.
+BuffDaddy_Output.lua
+
+# 6. Minimap button + dropdown - triggers Check + Output, loads after both.
+BuffDaddy_Minimap.lua
+
+# 7. XML frames - referenced by the Lua files above (e.g. BuffDaddyWindowLine1,
+#    BuffDaddy.Minimap.OnClick), loaded last so all those functions already exist.
+BuffDaddy.xml
