@@ -1,6 +1,6 @@
-# BuffDaddy
+# BuffDaddy (v0.2)
 
-A WoW 1.12.1 (vanilla / OctoWoW, SuperWoW-enabled) addon that watches your
+A WoW 1.12.1 (vanilla, SuperWoW-enabled) addon that watches your
 solo/group/raid roster and tells you what important buffs are missing.
 It never casts anything - purely a checker/reminder.
 
@@ -215,13 +215,15 @@ prefix, so people don't mistake it for a normal chat message.
 **Raid chat report** (sent to RAID if in a raid, PARTY if grouped, or
 printed to your own chat frame if solo):
 
-1. `>>> ` (black) `BUFFCHECK` (light blue, plain text - no longer a
-   rainbow letter-by-letter effect, see "Known risk areas") ` - ` (white)
-   `Y/X Groupbuffs` (green/red) ` | ` `A/B Selfbuffs` (green/red). If
-   **Output: display expiring Buffs too** is on, a third segment is
-   appended: ` | ` `C Buffs below D min` (green/red). If that toggle is
-   off, this segment is left out entirely (rather than always showing a
-   misleading "0 Buffs below").
+1. `>>> ` (black) `BUFFCHECK` (light blue) `Y/X Groupbuffs` (green/red)
+   ` | ` `A/B Selfbuffs` (green/red). If **Output: display expiring Buffs
+   too** is on, a third segment is appended: ` | ` `C Buffs below D min`
+   (green/red). If that toggle is off, this segment is left out entirely
+   (rather than always showing a misleading "0 Buffs below"). This line's
+   code is deliberately built with the fewest possible color-code bytes
+   (no redundant color resets, no separate " - " segment) - see the
+   comment above `BuildSummaryLine` in `BuffDaddy_Output.lua` and "Known
+   risk areas" #8 for why.
 2. One line per missing non-personal buff: `Missing` (white) ` "<name>"`
    (name in grey) ` from <Class>` (white) ` on <q> Players` (or, with
    Detailed output on, the actual player names instead - see below).
@@ -247,9 +249,9 @@ no spam limiting for now): `>>> ` (black) `You are ` (white) `missing`
   optional Print button (see below).
 - **Right-click**: opens the options dropdown, which has two sections:
 
-  **Window/behavior options** (top of the dropdown, session-only, reset on
-  login), grouped by prefix - "Window: ..." entries first, then
-  "Output: ..." entries:
+  **Window/behavior options** (top of the dropdown, saved between
+  sessions - see "Settings persistence" below), grouped by prefix -
+  "Window: ..." entries first, then "Output: ..." entries:
   - **Window: Clickthrough** - when on, the window ignores mouse
     clicks entirely (they pass through to whatever is behind it); it also
     can't be dragged while this is on. (There is no separate "Lock"
@@ -281,7 +283,7 @@ no spam limiting for now): `>>> ` (black) `You are ` (white) `missing`
     report lists the actual missing players by name (each in their own
     class color) instead of just a count. Capped at 5 names per line -
     past that it shows "(and more...!)" in red instead of listing
-    everyone. Off by default each login.
+    everyone.
   - **Output: display expiring Buffs too** - when OFF (default), remaining buff duration is
     ignored entirely - a buff only counts as found or missing, running-out
     time plays no part anywhere, and the raid chat summary line's
@@ -316,13 +318,50 @@ no spam limiting for now): `>>> ` (black) `You are ` (white) `missing`
     Buffs-below threshold submenus) is forced to open on the **left**
     side of the dropdown - see the `DropDownList2` hook near the top of
     `BuffDaddy_Minimap.lua`.
-  All start unticked/empty every login; nothing is saved to disk.
-  Enlighten's real aura name is "Enlighten Dummy" - the display name
-  "Enlighten" is just cosmetic (see `buffNames` vs `name` in
-  `BuffDaddy_Definitions.lua`).
+  Every tick here (including per-player ticks in the Inner Fire/Enlighten/
+  Thorns submenus) is saved between sessions too - see "Settings
+  persistence" below. Enlighten's real aura name is "Enlighten Dummy" -
+  the display name "Enlighten" is just cosmetic (see `buffNames` vs
+  `name` in `BuffDaddy_Definitions.lua`).
 
 Hovering the minimap button (without clicking) shows a tooltip that spells
 out all four click behaviors above.
+
+---
+
+## Settings persistence
+
+Every option in the dropdown - both the Window/Output toggles and the
+Optional buffs list (including per-player ticks in the Inner Fire/
+Enlighten/Thorns submenus) - is remembered between sessions. Nothing
+resets on login/relog any more.
+
+This works via a single SavedVariable, `BuffDaddyDB` (declared in
+`BuffDaddy.toc`), managed from `BuffDaddy.lua`:
+
+- `BuffDaddy.LoadSettings()` runs on `ADDON_LOADED` (before `PLAYER_LOGIN`)
+  and copies every saved value out of `BuffDaddyDB` into the matching
+  `BuffDaddy.*` field, so the rest of the addon keeps reading/writing
+  `BuffDaddy.*` exactly like before - it just happens to now be backed by
+  disk. The very first time the addon ever loads (no `BuffDaddyDB` yet),
+  it's created from the plain defaults still set at the top of
+  `BuffDaddy.lua`.
+- `BuffDaddy.OptionalEnabled` and `BuffDaddy.OptionalTargets` (the two
+  table-shaped settings) are pointed at the *same* table as
+  `BuffDaddyDB.OptionalEnabled`/`OptionalTargets` after loading - so
+  ticking an optional buff or a targeted player writes straight into the
+  saved table with no extra step.
+- Every other (plain true/false or number) setting is written back to
+  `BuffDaddyDB` by `BuffDaddy.SaveSettings()`, called right after that
+  setting changes (see the dropdown `func` callbacks in
+  `BuffDaddy_Minimap.lua`) and again at `PLAYER_LOGOUT` as a safety net.
+- Which fields count as "plain" settings is the `SAVED_VALUE_FIELDS` list
+  near the top of `BuffDaddy.lua` - add a new field there (plus a default
+  value above it) if a future toggle also needs to persist.
+
+If you ever want to reset everything back to defaults, delete
+`BuffDaddyDB` from your `WTF\Account\...\SavedVariables\BuffDaddy.lua`
+file (or just delete that whole file) and relog.
 
 ---
 
@@ -335,7 +374,10 @@ at the top stating its dependencies.
 1. `BuffDaddy_Definitions.lua` - pure data, no dependencies.
 2. `BuffDaddy.lua` - creates the `BuffDaddy` namespace/sub-tables, constants
    (`RUNNING_OUT_THRESHOLD`, `AUTO_REFRESH_INTERVAL`), the hidden scan
-   tooltip, and the `PLAYER_LOGIN` handler that starts the 10-second ticker.
+   tooltip, `LoadSettings`/`SaveSettings` (see "Settings persistence"),
+   and the `ADDON_LOADED`/`PLAYER_LOGIN`/`PLAYER_LOGOUT` handler that loads
+   settings, applies them to the window/buttons, and starts the
+   10-second ticker.
 3. `BuffDaddy_Roster.lua` - `BuffDaddy.Roster.GetRoster()`.
 4. `BuffDaddy_Check.lua` - all the matching/counting logic,
    `BuffDaddy.Check.RunCheck(announce)` is the main entry point.
@@ -345,8 +387,9 @@ at the top stating its dependencies.
    Loaded last since its `OnLoad`/`OnClick` scripts call Lua functions that
    must already exist.
 
-No SavedVariables are used - nothing about this addon persists between
-sessions by design (optional buff toggles reset to off every login).
+`BuffDaddyDB` (a SavedVariable, see `BuffDaddy.toc`) persists every option
+state between sessions - see "Settings persistence" below. Nothing else
+is saved (no per-character data beyond your own option choices).
 
 ---
 
@@ -681,3 +724,19 @@ sessions by design (optional buff toggles reset to off every login).
   - All four edited Lua files re-validated with `luac5.1 -p`, `BuffDaddy.xml`
     re-validated with `xml.dom.minidom`, and a widget-name cross-reference
     grep confirmed nothing is orphaned.
+- **v0.2 - shortened summary line, cleanup**: the `BUFFCHECK` summary
+  line was still occasionally not showing up in RAID/PARTY chat (it
+  showed fine locally via the Debug button) even after the earlier
+  color-reset cleanup and chat-tick staggering fixes - shortened its
+  labels further (`"Groupbuffs"` -> `"Group"`, `"Selfbuffs"` -> `"Self"`,
+  `"Buffs below D min"` -> `"Low Dm"`, dropped the spaces around the `|`
+  separators) in `BuildSummaryLine` (`BuffDaddy_Output.lua`) to cut the
+  total message length sent to `SendChatMessage`, since RAID/PARTY
+  appears to have a lower effective limit than local
+  `DEFAULT_CHAT_FRAME:AddMessage` printing on this server. Removed a
+  stale code comment referencing the old rainbow-text feature (the
+  feature itself was already gone from the code, only the comment was
+  leftover). Removed the "OctoWoW" mention from this file's intro line -
+  this addon targets a generic WoW 1.12.1 client/server, not any
+  specific private server. `BuffDaddy_Output.lua` re-validated with
+  `luac5.1 -p`.

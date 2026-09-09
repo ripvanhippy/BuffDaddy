@@ -23,37 +23,6 @@ local C_GREY   = "|cFF808080"
 local C_WSP    = "|cFFFF80FF" -- standard WoW whisper chat color
 local R        = "|r"
 
--- Colors used for the letter-by-letter "BUFFCHECK" rainbow effect.
--- Deliberately avoids dark blue, dark purple, deep red, and dark pink,
--- since those are hard to read in chat.
-local RAINBOW_COLORS = {
-    "|cFFFF5555", -- red
-    "|cFFFFA500", -- orange
-    "|cFFFFFF00", -- yellow
-    "|cFF55FF55", -- green
-    "|cFF00FFFF", -- cyan
-    "|cFF5599FF", -- blue
-    "|cFFFF66FF", -- pink
-}
-
--- Colors each letter of text in a cycling rainbow pattern.
-local function RainbowText(text)
-    local result = ""
-    local colorIndex = 1
-    local numColors = table.getn(RAINBOW_COLORS)
-
-    for i = 1, string.len(text) do
-        local ch = string.sub(text, i, i)
-        result = result .. RAINBOW_COLORS[colorIndex] .. ch .. R
-        colorIndex = colorIndex + 1
-        if colorIndex > numColors then
-            colorIndex = 1
-        end
-    end
-
-    return result
-end
-
 local function ClassColor(classToken)
     if RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
         local c = RAID_CLASS_COLORS[classToken]
@@ -333,7 +302,7 @@ end
 
 -- Small delay between successive SendChatMessage calls. Vanilla can
 -- silently drop a chat line if several are sent back-to-back in the same
--- frame/tick (this is why the rainbow BUFFCHECK line was sometimes
+-- frame/tick (this is why the BUFFCHECK summary line was sometimes
 -- missing while the "Missing:" lines still came through in a group) -
 -- staggering them a fraction of a second apart fixes it.
 local CHAT_LINE_DELAY = 0.2
@@ -382,9 +351,20 @@ end
 -- The " | c Buffs below D min" segment is only appended when
 -- "Output: display expiring Buffs too" is on - otherwise runningOutCount
 -- is always 0 and showing it would look like a real (empty) result.
+--
+-- KEPT AS SHORT AS POSSIBLE: this is the one line that was sometimes
+-- silently getting dropped by SendChatMessage in a group/raid (worked
+-- fine printed locally via debug, since that goes through
+-- DEFAULT_CHAT_FRAME:AddMessage instead, which doesn't have the same
+-- length problems). A |cAARRGGBB...|r color code costs 12-13 characters
+-- of pure overhead just to change color - a color code only needs to be
+-- set ONCE and stays active until the next one, so unlike normal
+-- writing, every extra "reset to white, then set the next color" pair
+-- here is pure wasted length. Don't add color resets ("..R..") between
+-- two colored segments below unless the color in between actually needs
+-- to be different - only the very last segment needs a trailing R, to
+-- stop the color from bleeding into whatever the game appends after.
 local function BuildSummaryLine(results, thresholdMinutes)
-    local prefix = C_BLACK .. ">>> " .. R
-
     local raidColor = C_GREEN
     if results.raidFound < results.raidExpected then
         raidColor = C_RED
@@ -395,23 +375,29 @@ local function BuildSummaryLine(results, thresholdMinutes)
         selfColor = C_RED
     end
 
-    local line = prefix .. C_LBLUE .. "BUFFCHECK" .. R .. C_WHITE .. " - " .. R ..
-        raidColor .. results.raidFound .. "/" .. results.raidExpected .. R ..
-        C_WHITE .. " Groupbuffs | " .. R ..
-        selfColor .. results.selfFound .. "/" .. results.selfExpected .. R ..
-        C_WHITE .. " Selfbuffs" .. R
+    -- Shortened labels ("Group"/"Self"/"Low") on top of the existing
+    -- no-redundant-color-reset trick below - fewer bytes sent to
+    -- SendChatMessage for RAID/PARTY, which appears to have a lower
+    -- effective limit than local DEFAULT_CHAT_FRAME printing on this
+    -- server (this line was still dropping in group/raid even after the
+    -- earlier color-reset cleanup, while printing fine locally via Debug).
+    local line = C_BLACK .. ">>> " .. C_LBLUE .. "BUFFCHECK " ..
+        raidColor .. results.raidFound .. "/" .. results.raidExpected ..
+        C_WHITE .. " Group|" ..
+        selfColor .. results.selfFound .. "/" .. results.selfExpected ..
+        C_WHITE .. " Self"
 
     if BuffDaddy.CheckExpiring then
         local belowColor = C_RED
         if results.runningOutCount == 0 then
             belowColor = C_GREEN
         end
-        line = line .. C_WHITE .. " | " .. R ..
-            belowColor .. results.runningOutCount .. R ..
-            C_WHITE .. " Buffs below " .. thresholdMinutes .. " min" .. R
+        line = line .. C_WHITE .. "|" ..
+            belowColor .. results.runningOutCount ..
+            C_WHITE .. " Low" .. thresholdMinutes .. "m"
     end
 
-    return line
+    return line .. R
 end
 
 -- Builds the tail end of a missing-buff line: either "on N Players" (the

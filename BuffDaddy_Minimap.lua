@@ -70,6 +70,7 @@ end
 -- check right away so the window updates immediately.
 function BuffDaddy.Minimap.ToggleExpand()
     BuffDaddy.PlayerListExpanded = not BuffDaddy.PlayerListExpanded
+    BuffDaddy.SaveSettings()
     BuffDaddy.Check.RunCheck(false)
 end
 
@@ -215,6 +216,7 @@ local function BuildIntervalSubmenu()
         info.checked = (BuffDaddy.AUTO_REFRESH_INTERVAL == opt.value)
         info.func = function()
             BuffDaddy.AUTO_REFRESH_INTERVAL = opt.value
+            BuffDaddy.SaveSettings()
             BuffDaddy.RestartAutoRefresh()
         end
         UIDropDownMenu_AddButton(info, 2)
@@ -231,6 +233,7 @@ local function BuildThresholdSubmenu()
         info.checked = (BuffDaddy.RUNNING_OUT_THRESHOLD == minutes * 60)
         info.func = function()
             BuffDaddy.RUNNING_OUT_THRESHOLD = minutes * 60
+            BuffDaddy.SaveSettings()
         end
         UIDropDownMenu_AddButton(info, 2)
     end
@@ -291,6 +294,7 @@ function BuffDaddy.Minimap.InitializeDropdown()
     -- Window/behavior options, grouped by prefix (Window: first, then Output:).
     AddToggleLine("Window: Clickthrough", BuffDaddy.WindowClickthrough == true, function()
         BuffDaddy.WindowClickthrough = not BuffDaddy.WindowClickthrough
+        BuffDaddy.SaveSettings()
         BuffDaddy.Output.SetClickthrough(BuffDaddy.WindowClickthrough)
     end)
 
@@ -300,11 +304,13 @@ function BuffDaddy.Minimap.InitializeDropdown()
 
     AddToggleLine("Window: show quick access buttons", BuffDaddy.ShowPrintButton == true, function()
         BuffDaddy.ShowPrintButton = not BuffDaddy.ShowPrintButton
+        BuffDaddy.SaveSettings()
         BuffDaddy.Output.SetPrintButtonShown(BuffDaddy.ShowPrintButton)
     end)
 
     AddToggleLine("Window: Debug button", BuffDaddy.ShowDebugButton == true, function()
         BuffDaddy.ShowDebugButton = not BuffDaddy.ShowDebugButton
+        BuffDaddy.SaveSettings()
         BuffDaddy.Output.SetDebugButtonShown(BuffDaddy.ShowDebugButton)
     end)
 
@@ -312,10 +318,12 @@ function BuffDaddy.Minimap.InitializeDropdown()
 
     AddToggleLine("Output: Detailed (Playernames)", BuffDaddy.DetailedOutput == true, function()
         BuffDaddy.DetailedOutput = not BuffDaddy.DetailedOutput
+        BuffDaddy.SaveSettings()
     end)
 
     AddToggleLine("Output: display expiring Buffs too", BuffDaddy.CheckExpiring == true, function()
         BuffDaddy.CheckExpiring = not BuffDaddy.CheckExpiring
+        BuffDaddy.SaveSettings()
     end)
 
     AddSubmenuLine("Output: expiring buff remaining time threshhold", THRESHOLD_MENU_VALUE)

@@ -1,7 +1,9 @@
 ## Interface: 11200
-## Title: BuffDaddy
+## Title: |cffff8000<Gaha>|r |cff006400BuffDaddy|r
 ## Notes: Raid/group buff tracker and reminder
 ## Author: Max
+## Version: 0.2
+## SavedVariables: BuffDaddyDB
 
 # Load order matters! Each file depends on the ones loaded before it.
 # See the comment block at the top of each file for its specific dependencies.
